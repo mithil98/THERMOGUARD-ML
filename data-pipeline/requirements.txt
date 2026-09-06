@@ -1,0 +1,9 @@
+requests
+pandas
+numpy
+geopandas
+shapely
+rasterio
+pystac-client
+planetary-computer
+tqdm

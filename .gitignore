@@ -17,3 +17,7 @@ frontend/.vite/
 # logs
 *.log
 
+# data pipeline
+data-pipeline/output/
+.env
+
