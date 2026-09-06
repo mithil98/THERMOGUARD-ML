@@ -9,3 +9,11 @@ thermoguard_model_74_backup.pkl
 thermoguard_model_no_frp.pkl
 thermoguard_model_no_frp_backup.pkl
 
+# frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# logs
+*.log
+

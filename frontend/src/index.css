@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-obsidian: #08080a;
+  --color-onyx: #040406;
+  --color-carbon: #121317;
+  --color-graphite: #1c1d22;
+  --color-slate: #2e3038;
+  --color-smoke: #464853;
+  --color-ash: #5e616e;
+  --color-steel: #777a88;
+  --color-fog: #9194a1;
+  --color-mist: #acafb9;
+  --color-silver: #c7c9d1;
+  --color-bone: #e2e3e9;
+  --color-paper-white: #ffffff;
+  --color-copper: #cc9166;
+  --color-gilded-gradient: #ae9357;
+
+  /* Restrained risk-status accents (desaturated, badge/border use only) */
+  --color-sage: #7fae8e;
+  --color-amber-dim: #c9974f;
+  --color-rose-dim: #c47768;
+
+  /* Typography */
+  --font-display: 'Playfair Display', ui-serif, Georgia, serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Typography — Scale */
+  --text-eyebrow: 13px;
+  --text-body-xs: 16px;
+  --text-body-sm: 18px;
+  --text-body: 20px;
+  --text-subheading: 24px;
+  --text-heading-sm: 44px;
+  --text-heading: 52px;
+  --text-heading-lg: 64px;
+  --text-display: 88px;
+
+  /* Border Radius */
+  --radius-sm: 2px;
+  --radius-lg: 10px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-subtle: rgba(255, 255, 255, 0.2) 0px 0px 0px 1px;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-obsidian);
+  color: var(--color-bone);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+::selection {
+  background: var(--color-copper);
+  color: var(--color-obsidian);
+}
+
+button, a {
+  touch-action: manipulation;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Leaflet dark-canvas fit */
+.leaflet-container {
+  background: var(--color-onyx) !important;
+  font-family: var(--font-sans);
+}
