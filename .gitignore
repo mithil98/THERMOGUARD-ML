@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+
+data_cleaned.csv
+data_with_fire_source.csv
+
+thermoguard_model_74_backup.pkl
+thermoguard_model_no_frp.pkl
+thermoguard_model_no_frp_backup.pkl
+
