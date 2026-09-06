@@ -25,9 +25,9 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from sources.burned_area import burned_outcome_for
-from sources.hotspots import fetch_hotspots
-from sources.landcover import fire_source_for
+from sources.burned_area import label_burned_batch
+from sources.hotspots import INDIA_BBOX, fetch_hotspots
+from sources.landcover import label_landcover_batch
 
 # Mirrors backend/app/ml.py's build_input_data() feature set exactly, so a
 # model trained here needs zero translation to be served as-is.
@@ -128,21 +128,21 @@ def label_risk(neighborhood_burned_pixels: int) -> str:
     return "High"
 
 
-def build(hotspots: pd.DataFrame, window_days: int = 30) -> pd.DataFrame:
-    rows = []
-    for _, row in tqdm(hotspots.iterrows(), total=len(hotspots), desc="Labeling hotspots"):
-        features = engineer_features(row)
+def build(hotspots: pd.DataFrame, bbox: list, window_days: int = 30) -> pd.DataFrame:
+    print(f"Engineering features for {len(hotspots)} rows...")
+    feature_rows = [engineer_features(row) for _, row in tqdm(hotspots.iterrows(), total=len(hotspots), desc="Features")]
+    dataset = pd.DataFrame(feature_rows)
 
-        acq_date = datetime.strptime(str(row["acq_date"]), "%Y-%m-%d").date()
-        burn = burned_outcome_for(features["latitude"], features["longitude"], acq_date, window_days)
-        source = fire_source_for(features["latitude"], features["longitude"])
+    print("Labeling risk against real burned-area outcomes (batched by tile+month)...")
+    burn_result = label_burned_batch(hotspots, bbox, window_days=window_days)
+    dataset["risk_level"] = burn_result["neighborhood_burned_pixels"].apply(label_risk).values
 
-        features["risk_level"] = label_risk(burn["neighborhood_burned_pixels"])
-        features["fire_source"] = source
-        features["frp"] = float(row.get("frp", 0.0))  # kept for reference, not fed to the model
-        rows.append(features)
+    print("Labeling fire source against real land-cover data (batched by tile)...")
+    dataset["fire_source"] = label_landcover_batch(dataset).values
 
-    return pd.DataFrame(rows)
+    dataset["frp"] = hotspots["frp"].astype(float).values if "frp" in hotspots.columns else 0.0
+
+    return dataset
 
 
 def main():
@@ -164,7 +164,8 @@ def main():
         sys.exit(1)
 
     print(f"Fetched {len(hotspots)} hotspot detections. Labeling against real ground truth ...")
-    dataset = build(hotspots, window_days=args.window_days)
+    bbox = [float(x) for x in INDIA_BBOX.split(",")]
+    dataset = build(hotspots, bbox, window_days=args.window_days)
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)

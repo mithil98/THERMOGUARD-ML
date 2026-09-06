@@ -12,23 +12,33 @@ gridded into MODIS sinusoidal tiles (h/v), one monthly granule per tile:
     -1       = not processed / no data (commonly water or missing input)
     -2       = water mask
 
-This module answers, for one hotspot (lat, lon, date): did a burned-area
-pixel appear at this location within `window_days` following the
-detection? That becomes the real basis for `risk_level` — replacing the
-FRP-threshold bucket the original dataset used — instead of asking "is
-FRP above X" it asks "did this actually burn".
+This module answers, for a batch of hotspots: did a burned-area pixel
+appear at each location within `window_days` following detection? That
+becomes the real basis for `risk_level` — replacing the FRP-threshold
+bucket the original dataset used.
+
+Batched by (year, month, tile) rather than per-row: at India-wide, multi-
+year scale (~1.5M raw hotspots for a 3-year pull) a naive per-row STAC
+search + raster open is a network round-trip per row — weeks of runtime.
+Batching opens each monthly tile raster exactly once (a few hundred opens
+total for 3 years x ~15 tiles covering India x 2 months per row's window),
+then does all point lookups against the in-memory array with numpy.
 """
 
-from datetime import date, timedelta
+from datetime import date
 
+import numpy as np
+import pandas as pd
 import planetary_computer
 import pystac_client
 import rasterio
+from rasterio.warp import transform as warp_transform
 
 STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 COLLECTION = "modis-64A1-061"
 
 _catalog = None
+_raster_cache: dict[str, dict] = {}  # item.id -> {"data": ndarray, "crs":..., "transform":...}
 
 
 def _get_catalog():
@@ -38,91 +48,137 @@ def _get_catalog():
     return _catalog
 
 
-def burned_outcome_for(
-    lat: float,
-    lon: float,
-    detected_on: date,
-    window_days: int = 30,
-    neighborhood_px: int = 5,
-) -> dict:
-    """
-    Look up whether a hotspot at (lat, lon) detected on `detected_on`
-    corresponds to a mapped burn within the following `window_days`.
-
-    Also counts burned pixels in a `neighborhood_px` x `neighborhood_px`
-    window around the point (500m pixels, so 5x5 ~= 2.5km x 2.5km) as a
-    cheap size proxy for Medium vs High risk severity — a real, sourced
-    number, but a simplification of true fire-perimeter delineation
-    (contiguous burned-area polygons), which would need connected-
-    component analysis across tile boundaries. Documented as a follow-up
-    refinement once this is producing real labels end-to-end.
-
-    Returns:
-        {
-            "burned": bool,
-            "burn_day_of_year": int | None,
-            "neighborhood_burned_pixels": int,
-            "confidence": "found" | "no_data",
-        }
-    """
-    end = detected_on + timedelta(days=window_days)
-    bbox = [lon - 0.05, lat - 0.05, lon + 0.05, lat + 0.05]
+def _month_items(bbox: list[float], year: int, month: int):
+    """One STAC search per (bbox, year, month) — cached implicitly by the
+    caller iterating unique months once."""
+    start = date(year, month, 1)
+    end_month = month + 1 if month < 12 else 1
+    end_year = year if month < 12 else year + 1
+    end = date(end_year, end_month, 1)
 
     catalog = _get_catalog()
-    search = catalog.search(
-        collections=[COLLECTION],
-        bbox=bbox,
-        datetime=f"{detected_on.isoformat()}/{end.isoformat()}",
-    )
-    items = list(search.items())
+    search = catalog.search(collections=[COLLECTION], bbox=bbox, datetime=f"{start.isoformat()}/{end.isoformat()}")
+    return list(search.items())
 
-    if not items:
-        return {
+
+def _load_tile(item) -> dict | None:
+    if item.id in _raster_cache:
+        return _raster_cache[item.id]
+
+    asset = item.assets.get("Burn_Date")
+    if asset is None:
+        _raster_cache[item.id] = None
+        return None
+
+    with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR"):
+        with rasterio.open(asset.href) as src:
+            data = src.read(1)
+            entry = {"data": data, "crs": src.crs, "transform": src.transform, "bounds": src.bounds}
+
+    _raster_cache[item.id] = entry
+    return entry
+
+
+def _integral_image(mask: np.ndarray) -> np.ndarray:
+    """Summed-area table for O(1) rectangle-sum neighborhood queries."""
+    return mask.astype(np.int32).cumsum(axis=0).cumsum(axis=1)
+
+
+def _rect_sum(integral: np.ndarray, r0: int, r1: int, c0: int, c1: int) -> int:
+    """Sum of mask over rows [r0,r1), cols [c0,c1) using an integral image."""
+    h, w = integral.shape
+    r0, r1 = max(r0, 0), min(r1, h)
+    c0, c1 = max(c0, 0), min(c1, w)
+    if r1 <= r0 or c1 <= c0:
+        return 0
+    total = integral[r1 - 1, c1 - 1]
+    if r0 > 0:
+        total -= integral[r0 - 1, c1 - 1]
+    if c0 > 0:
+        total -= integral[r1 - 1, c0 - 1]
+    if r0 > 0 and c0 > 0:
+        total += integral[r0 - 1, c0 - 1]
+    return int(total)
+
+
+def label_burned_batch(
+    hotspots: pd.DataFrame,
+    bbox: list[float],
+    window_days: int = 30,
+    neighborhood_px: int = 5,
+) -> pd.DataFrame:
+    """
+    hotspots: DataFrame with 'latitude', 'longitude', 'acq_date' (YYYY-MM-DD).
+
+    Returns a DataFrame (same row order/index) with columns:
+        burned (bool), burn_day_of_year (float, NaN if none),
+        neighborhood_burned_pixels (int)
+    """
+    dates = pd.to_datetime(hotspots["acq_date"])
+    year_months = sorted({(d.year, d.month) for d in dates})
+
+    result = pd.DataFrame(
+        {
             "burned": False,
-            "burn_day_of_year": None,
+            "burn_day_of_year": np.nan,
             "neighborhood_burned_pixels": 0,
-            "confidence": "no_data",
-        }
+        },
+        index=hotspots.index,
+    )
 
-    best_day = None
-    max_neighbors = 0
+    half = neighborhood_px // 2
 
-    for item in items:
-        asset = item.assets.get("Burn_Date")
-        if asset is None:
+    for year, month in year_months:
+        # A hotspot's `window_days`-following window can spill into next
+        # month; checking this month + next covers the common case without
+        # tracking exact day-level spans per row.
+        months_to_check = [(year, month)]
+        next_month = month + 1 if month < 12 else 1
+        next_year = year if month < 12 else year + 1
+        if window_days > 0:
+            months_to_check.append((next_year, next_month))
+
+        row_mask = (dates.dt.year == year) & (dates.dt.month == month)
+        subset = hotspots.loc[row_mask]
+        if subset.empty:
             continue
 
-        with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR"):
-            with rasterio.open(asset.href) as src:
-                # MCD64A1 is in MODIS sinusoidal projection; reproject the
-                # point rather than the raster to keep this a cheap lookup.
-                from rasterio.warp import transform as warp_transform
-
-                xs, ys = warp_transform("EPSG:4326", src.crs, [lon], [lat])
-                row, col = src.index(xs[0], ys[0])
-
-                half = neighborhood_px // 2
-                r0, r1 = max(row - half, 0), row + half + 1
-                c0, c1 = max(col - half, 0), col + half + 1
-
-                try:
-                    block = src.read(1, window=((r0, r1), (c0, c1)))
-                except IndexError:
+        for check_year, check_month in months_to_check:
+            items = _month_items(bbox, check_year, check_month)
+            for item in items:
+                tile = _load_tile(item)
+                if tile is None:
                     continue
 
-        neighbor_count = int((block > 0).sum())
-        if neighbor_count > max_neighbors:
-            max_neighbors = neighbor_count
+                lons = subset["longitude"].to_numpy()
+                lats = subset["latitude"].to_numpy()
+                xs, ys = warp_transform("EPSG:4326", tile["crs"], lons.tolist(), lats.tolist())
 
-        r_local, c_local = row - r0, col - c0
-        if 0 <= r_local < block.shape[0] and 0 <= c_local < block.shape[1]:
-            center_value = int(block[r_local, c_local])
-            if center_value > 0 and best_day is None:
-                best_day = center_value
+                inv = ~tile["transform"]
+                cols, rows = inv * (np.array(xs), np.array(ys))
+                rows = np.round(rows).astype(int)
+                cols = np.round(cols).astype(int)
 
-    return {
-        "burned": best_day is not None,
-        "burn_day_of_year": best_day,
-        "neighborhood_burned_pixels": max_neighbors,
-        "confidence": "found",
-    }
+                h, w = tile["data"].shape
+                in_bounds = (rows >= 0) & (rows < h) & (cols >= 0) & (cols < w)
+                if not in_bounds.any():
+                    continue
+
+                burned_mask = tile["data"] > 0
+                integral = _integral_image(burned_mask)
+
+                for local_idx, (r, c, ok) in enumerate(zip(rows, cols, in_bounds)):
+                    if not ok:
+                        continue
+                    idx = subset.index[local_idx]
+
+                    neighbor_count = _rect_sum(integral, r - half, r + half + 1, c - half, c + half + 1)
+                    if neighbor_count > result.at[idx, "neighborhood_burned_pixels"]:
+                        result.at[idx, "neighborhood_burned_pixels"] = neighbor_count
+
+                    center_value = int(tile["data"][r, c])
+                    if center_value > 0 and not result.at[idx, "burned"]:
+                        result.at[idx, "burned"] = True
+                        result.at[idx, "burn_day_of_year"] = center_value
+
+    return result

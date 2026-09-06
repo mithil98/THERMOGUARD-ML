@@ -25,7 +25,7 @@ import pandas as pd
 import requests
 
 FIRMS_BASE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
-MAX_DAY_RANGE = 10
+MAX_DAY_RANGE = 5  # archive (MODIS_SP) sources cap at 5 days per request
 
 # India bounding box (west, south, east, north) — matches the plan's
 # default geographic scope (see data-pipeline/README.md).

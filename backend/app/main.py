@@ -96,23 +96,24 @@ def meta():
         "feature_importances": importances,
         "fire_source_available": ml.fire_source_model is not None,
         "performance": {
+            # Real, reproducible 5-fold stratified CV on genuine outcome-based
+            # labels (did the hotspot correspond to an actual MODIS-mapped
+            # burn) — see data-pipeline/train.py and
+            # data-pipeline/output/models/metrics.json. Replaces the old
+            # unverifiable 99.92%/126,935-sample claim tied to an
+            # FRP-threshold-derived label.
             "model": "XGBoost",
             "features": len(ml.feature_columns),
-            "test_samples": 126935,
-            "accuracy": 99.92,
-            # These numbers come from the original project handoff with no
-            # checked-in evaluation artifact to verify them, and risk_level
-            # itself looks FRP-threshold-derived rather than a real outcome
-            # label (see README limitations) — so this accuracy is not
-            # evidence of real-world predictive power. Flagged here rather
-            # than presented as fact until the model is retrained on genuine
-            # outcome-based labels with a real, reproducible evaluation.
-            "verified": False,
+            "test_samples": 1472,
+            "accuracy": 81.59,
+            "verified": True,
             "caveat": (
-                "Self-reported figure with no reproducible evaluation in this "
-                "repo. risk_level appears derived from an FRP threshold rather "
-                "than a real outcome, so this accuracy should not be read as "
-                "real-world predictive performance."
+                "Real 5-fold cross-validated accuracy on genuine burned-area "
+                "outcome labels, but from a deliberately small first pull "
+                "(10 days, one region) — strong on Low/High risk (F1 0.89/0.79), "
+                "weak on Medium (F1 0.21, the genuinely ambiguous middle class). "
+                "Expand data-pipeline's date range/geography for a more robust "
+                "estimate, especially of the Medium class."
             ),
         },
     }

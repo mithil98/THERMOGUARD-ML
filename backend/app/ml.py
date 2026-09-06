@@ -12,9 +12,14 @@ import pandas as pd
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-MODEL_FILE = os.path.join(ROOT_DIR, "thermoguard_best.pkl")
-ENCODER_FILE = os.path.join(ROOT_DIR, "label_encoder_best.pkl")
-FEATURE_FILE = os.path.join(ROOT_DIR, "feature_columns_best.pkl")
+# v2: trained on real, sourced labels (MODIS burned-area outcomes) via
+# data-pipeline/, replacing the FRP-threshold-derived risk_level the
+# original thermoguard_best.pkl was trained on. See data-pipeline/README.md
+# and output/models/metrics.json for the honest evaluation (81.6% CV
+# accuracy on a deliberately small, single-region/season first pull).
+MODEL_FILE = os.path.join(ROOT_DIR, "thermoguard_risk_v2.pkl")
+ENCODER_FILE = os.path.join(ROOT_DIR, "label_encoder_risk_v2.pkl")
+FEATURE_FILE = os.path.join(ROOT_DIR, "feature_columns_risk_v2.pkl")
 
 FIRE_SOURCE_MODEL_FILE = os.path.join(ROOT_DIR, "thermoguard_fire_source_model.pkl")
 FIRE_SOURCE_ENCODER_FILE = os.path.join(ROOT_DIR, "fire_source_label_encoder.pkl")
