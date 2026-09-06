@@ -96,12 +96,24 @@ def meta():
         "feature_importances": importances,
         "fire_source_available": ml.fire_source_model is not None,
         "performance": {
-            # Static figures displayed by the original app.py (st.metric calls),
-            # kept as-is for parity even though len(feature_columns) is actually 35.
             "model": "XGBoost",
-            "features": 28,
+            "features": len(ml.feature_columns),
             "test_samples": 126935,
             "accuracy": 99.92,
+            # These numbers come from the original project handoff with no
+            # checked-in evaluation artifact to verify them, and risk_level
+            # itself looks FRP-threshold-derived rather than a real outcome
+            # label (see README limitations) — so this accuracy is not
+            # evidence of real-world predictive power. Flagged here rather
+            # than presented as fact until the model is retrained on genuine
+            # outcome-based labels with a real, reproducible evaluation.
+            "verified": False,
+            "caveat": (
+                "Self-reported figure with no reproducible evaluation in this "
+                "repo. risk_level appears derived from an FRP threshold rather "
+                "than a real outcome, so this accuracy should not be read as "
+                "real-world predictive performance."
+            ),
         },
     }
 

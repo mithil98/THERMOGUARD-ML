@@ -61,6 +61,8 @@ export interface MetaResponse {
     features: number
     test_samples: number
     accuracy: number
+    verified: boolean
+    caveat: string
   }
 }
 

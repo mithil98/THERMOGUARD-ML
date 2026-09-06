@@ -116,6 +116,23 @@ def build_input_data(
     day_of_year_sin = np.sin(2 * np.pi * day_of_year / 365)
     day_of_year_cos = np.cos(2 * np.pi * day_of_year / 365)
 
+    # Engineered features train_best.py adds on top of the raw columns above.
+    # thermoguard_best.pkl was trained expecting these — previously this
+    # function didn't compute them, so they were silently zero-filled at
+    # inference by the reindex(fill_value=0) call in predict_fire().
+    brightness_diff = brightness - bright_t31
+    brightness_ratio = brightness / (bright_t31 + 1)
+    scan_track_mean = (scan + track) / 2
+    scan_track_diff = abs(scan - track)
+
+    # train_best.py computes a second, formula-identical sin/cos pair
+    # (hour_sin2/month_sin2 etc.) alongside hour_sin/month_sin — kept as
+    # separate columns because that's what the trained model expects.
+    hour_sin2 = hour_sin
+    hour_cos2 = hour_cos
+    month_sin2 = month_sin
+    month_cos2 = month_cos
+
     input_data = pd.DataFrame(
         [
             {
@@ -147,6 +164,14 @@ def build_input_data(
                 "hour_cos": hour_cos,
                 "day_of_year_sin": day_of_year_sin,
                 "day_of_year_cos": day_of_year_cos,
+                "brightness_diff": brightness_diff,
+                "brightness_ratio": brightness_ratio,
+                "scan_track_mean": scan_track_mean,
+                "scan_track_diff": scan_track_diff,
+                "hour_sin2": hour_sin2,
+                "hour_cos2": hour_cos2,
+                "month_sin2": month_sin2,
+                "month_cos2": month_cos2,
             }
         ]
     )

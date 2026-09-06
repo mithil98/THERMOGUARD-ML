@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react'
 import type { MetaResponse } from '../types'
 import CountUp from './fx/CountUp'
 import Reveal from './fx/Reveal'
@@ -27,6 +28,17 @@ export default function PerformanceStats({ meta }: { meta: MetaResponse }) {
           </Reveal>
         ))}
       </div>
+
+      {!meta.performance.verified && (
+        <Reveal delay={0.2}>
+          <div className="mt-4 flex items-start gap-3 rounded-[10px] border border-[#c9974f]/50 bg-[#c9974f]/10 p-5">
+            <TriangleAlert size={18} strokeWidth={1.5} className="mt-0.5 shrink-0 text-[#e6b878]" aria-hidden="true" />
+            <p className="text-[14px] leading-[1.5] text-mist">
+              <b className="text-bone">Unverified:</b> {meta.performance.caveat}
+            </p>
+          </div>
+        </Reveal>
+      )}
     </section>
   )
 }
