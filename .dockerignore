@@ -1,0 +1,26 @@
+.git
+frontend/node_modules
+frontend/dist
+*.log
+venv/
+__pycache__/
+*.pyc
+
+# Unused model variants not loaded by backend/app/ml.py — keeps the
+# backend build context small. Add back here (and to backend/Dockerfile)
+# if the app switches models.
+thermoguard_model.pkl
+thermoguard_lightgbm.pkl
+thermoguard_xgboost.pkl
+thermoguard_xgboost_strong.pkl
+label_encoder.pkl
+label_encoder_lightgbm.pkl
+label_encoder_no_frp.pkl
+label_encoder_xgboost.pkl
+label_encoder_xgboost_strong.pkl
+feature_columns.pkl
+feature_columns_lightgbm.pkl
+feature_columns_no_frp.pkl
+feature_columns_xgboost.pkl
+feature_columns_xgboost_strong.pkl
+New folder/

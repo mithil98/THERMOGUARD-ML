@@ -9,7 +9,25 @@ The project has two parts:
 
 Model training scripts and datasets used to produce the `.pkl` model files live at the repo root (`train_*.py`, `evaluate_model.py`, `feature_importance.py`).
 
-## Prerequisites
+## Quickest start: Docker
+
+No Python, Node, or dependency installs needed — just [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+```bash
+git clone https://github.com/mithil98/THERMOGUARD-ML.git
+cd THERMOGUARD-ML
+docker compose up --build
+```
+
+Then open **http://localhost:3000**. The frontend container serves the built app and proxies `/api/*` to the backend container internally — nothing else to configure.
+
+Stop it with `docker compose down` (add `-v` to also remove any anonymous volumes).
+
+Skip to [Manual setup](#manual-setup-without-docker) below if you'd rather run the backend/frontend directly.
+
+## Manual setup (without Docker)
+
+### Prerequisites
 
 | Tool | Version | Check |
 |---|---|---|
@@ -17,14 +35,14 @@ Model training scripts and datasets used to produce the `.pkl` model files live 
 | Node.js | 18+ | `node --version` |
 | npm | 9+ | `npm --version` |
 
-## 1. Clone the repo
+### 1. Clone the repo
 
 ```bash
 git clone https://github.com/mithil98/THERMOGUARD-ML.git
 cd THERMOGUARD-ML
 ```
 
-## 2. Backend setup (FastAPI)
+### 2. Backend setup (FastAPI)
 
 From the repo root:
 
@@ -54,7 +72,7 @@ curl http://localhost:8000/api/health
 
 Interactive API docs: http://localhost:8000/docs
 
-## 3. Frontend setup (React + Vite)
+### 3. Frontend setup (React + Vite)
 
 In a second terminal:
 
@@ -66,14 +84,14 @@ npm run dev
 
 Open **http://localhost:5173**. The dev server proxies `/api/*` requests to the backend on port 8000 (see `frontend/vite.config.ts`), so both servers need to be running.
 
-## 4. Using the app
+### 4. Using the app
 
 1. Fill in the satellite hotspot parameters (location, brightness, FRP, acquisition time, etc.) — sensible defaults are pre-filled.
 2. Drag the **Live Fire Risk Interaction** sliders to see the risk level and probabilities update in real time.
 3. Click **Analyze Fire Risk** for the full report: risk level, fire source classification, intensity/thermal/temporal analysis, alert assessment, probability breakdown, and a location map.
 4. Click **Download PDF Report** to save a formatted report of the current analysis.
 
-## Production build
+### 5. Production build (manual)
 
 ```bash
 cd frontend
@@ -87,13 +105,15 @@ Serve `frontend/dist` with any static host, and run the backend with a productio
 uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Update the frontend's API base URL / proxy configuration if the backend isn't reachable at the same origin in production.
+Update the frontend's API base URL / proxy configuration if the backend isn't reachable at the same origin in production. (The Docker setup above already does this via the nginx `/api/` proxy in `frontend/nginx.conf`.)
 
 ## Project structure
 
 ```
 THERMOGUARD-ML/
+├── docker-compose.yml         # wires backend + frontend containers together
 ├── backend/
+│   ├── Dockerfile
 │   ├── app/
 │   │   ├── main.py        # FastAPI app, route wiring
 │   │   ├── ml.py           # model loading, feature engineering, prediction
@@ -101,6 +121,8 @@ THERMOGUARD-ML/
 │   │   └── schemas.py        # request/response models
 │   └── requirements.txt
 ├── frontend/
+│   ├── Dockerfile
+│   ├── nginx.conf              # serves the built app + proxies /api to the backend
 │   ├── src/
 │   │   ├── components/     # UI sections (form, results, charts, map, ...)
 │   │   ├── components/fx/   # animated UI primitives
