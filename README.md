@@ -11,19 +11,50 @@ Model training scripts and datasets used to produce the `.pkl` model files live 
 
 ## Quickest start: Docker
 
-No Python, Node, or dependency installs needed — just [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+No Python, Node, or dependency installs needed on the machine — Docker reproduces the exact same environment every time, on any OS.
 
+**1. Install Docker**
+- Windows/Mac: install [Docker Desktop](https://www.docker.com/products/docker-desktop/), then open it once (accept any first-launch prompts — on Windows this enables the WSL2 backend).
+- Linux: install `docker` + the `docker compose` plugin via your package manager, or Docker's official install script.
+
+**2. Verify it's working**
+```bash
+docker --version
+docker compose version
+```
+Both should print version numbers with no errors.
+
+**3. Get the code**
 ```bash
 git clone https://github.com/mithil98/THERMOGUARD-ML.git
 cd THERMOGUARD-ML
+```
+(No git on this machine? Download the repo as a ZIP from GitHub and extract it instead.)
+
+**4. Run it**
+```bash
 docker compose up --build
 ```
+First run downloads base images and installs all dependencies inside the containers — a few minutes. Every run after that is fast (cached).
 
-Then open **http://localhost:3000**. The frontend container serves the built app and proxies `/api/*` to the backend container internally — nothing else to configure.
+**5. Open it**
+- Frontend: **http://localhost:3000**
+- Backend API: **http://localhost:8000** (interactive docs at `/docs`)
 
-Stop it with `docker compose down` (add `-v` to also remove any anonymous volumes).
+The frontend container serves the built app and proxies `/api/*` to the backend container internally — nothing else to configure.
 
-Skip to [Manual setup](#manual-setup-without-docker) below if you'd rather run the backend/frontend directly.
+**6. Stop it**
+```bash
+docker compose down
+```
+(`Ctrl+C` in the same terminal also works if it's running in the foreground. Add `-v` to `down` to also remove any anonymous volumes.)
+
+**7. Run it again later** (no rebuild needed unless the code changed)
+```bash
+docker compose up -d
+```
+
+Skip to [Manual setup](#manual-setup-without-docker) below if you'd rather run the backend/frontend directly instead of through Docker.
 
 ## Manual setup (without Docker)
 
@@ -129,7 +160,12 @@ THERMOGUARD-ML/
 │   │   ├── lib/               # API client, helpers
 │   │   └── App.tsx
 │   └── package.json
-├── train_*.py                # model training scripts
+├── data-pipeline/              # real, sourced training data + the canonical train.py
+│   ├── sources/                  # hotspots.py (FIRMS), burned_area.py, landcover.py
+│   ├── build_dataset.py            # orchestrates sources/ into a labeled dataset
+│   ├── train.py                     # trains + evaluates the risk/fire-source models
+│   └── README.md                     # data sourcing details, scope decisions, known limits
+├── train_*.py                  # legacy/superseded model training scripts
 ├── evaluate_model.py           # model evaluation
 ├── feature_importance.py        # feature importance analysis
 └── *.pkl                          # trained models, encoders, feature lists
@@ -137,6 +173,6 @@ THERMOGUARD-ML/
 
 ## Important limitations
 
+- **Risk model (v2, currently live)** is trained on real, sourced outcome labels — did the hotspot correspond to an actual MODIS-mapped burn (`data-pipeline/`) — instead of the original FRP-threshold-derived label. Honestly evaluated at **81.6% cross-validated accuracy**, but on a deliberately small first pull (1,472 rows, 10 days, one region): strong on Low/High risk, weak on Medium (the genuinely ambiguous middle class). See `data-pipeline/README.md` for how to pull more data and retrain.
 - **Fire Detection** is a preliminary rule-based thermal screening (FRP ≥ 2.40 and brightness difference ≥ 15), not a separately trained binary Fire/No-Fire classifier.
-- **Fire Source** categories (Vegetation Fire, Other Land Source, Offshore, Unknown) come from the dataset's hotspot source classes — the dataset does not provide direct Forest/Agriculture/Industrial labels, so "Other Land Source" must not be read as confirmed industrial activity.
-- The reported model accuracy is strongly influenced by FRP in the training dataset and should not be interpreted as independent real-world wildfire prediction accuracy.
+- **Fire Source** model is still the original one, trained on FIRMS's own `type` field rather than real land-cover data — `data-pipeline/sources/landcover.py` provides a real replacement, but this session's small pull had too few non-vegetation examples (15 Other Land Source vs. 1,449 Vegetation Fire) to train a meaningful classifier from it. Needs a more geographically/seasonally diverse pull first.
