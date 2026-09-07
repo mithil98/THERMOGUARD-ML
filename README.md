@@ -2,12 +2,13 @@
 
 AI-based wildfire risk prediction and fire source analysis, built on NASA satellite hotspot telemetry (brightness, FRP, scan/track geometry, day/night, confidence).
 
-The project has two parts:
+The project has three active parts:
 
 - **`backend/`** — a FastAPI service that loads the trained XGBoost models and exposes prediction, fire-source classification, and PDF-report endpoints.
 - **`frontend/`** — a React + TypeScript + Tailwind CSS single-page app that drives those endpoints, with a live-slider risk simulator, a fire location map, and a downloadable PDF report.
+- **`data-pipeline/`** — builds real, sourced training data (real burned-area outcomes, real land-cover classes) and trains the models `backend/` serves. See `data-pipeline/README.md`.
 
-Model training scripts and datasets used to produce the `.pkl` model files live at the repo root (`train_*.py`, `evaluate_model.py`, `feature_importance.py`).
+Trained model artifacts live in `models/` (see `models/README.md` for which ones are actually active vs. retired). Superseded training scripts and old evaluation artifacts live in `legacy/`, kept for reference only.
 
 ## Quickest start: Docker
 
@@ -165,10 +166,11 @@ THERMOGUARD-ML/
 │   ├── build_dataset.py            # orchestrates sources/ into a labeled dataset
 │   ├── train.py                     # trains + evaluates the risk/fire-source models
 │   └── README.md                     # data sourcing details, scope decisions, known limits
-├── train_*.py                  # legacy/superseded model training scripts
-├── evaluate_model.py           # model evaluation
-├── feature_importance.py        # feature importance analysis
-└── *.pkl                          # trained models, encoders, feature lists
+├── models/                      # every trained .pkl — see models/README.md for active vs. retired
+├── legacy/                      # superseded training scripts, kept for reference — see legacy/README.md
+├── docs/                        # Dashboard_Design.md (frontend style reference), old sample PDF report
+├── .gitignore / .dockerignore
+└── README.md
 ```
 
 ## Important limitations
